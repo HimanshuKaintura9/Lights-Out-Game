@@ -3,53 +3,144 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lights Out | Setup</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Lights Out | Logic Puzzle</title>
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-    <main class="setup-card">
-        <p class="eyebrow">A LOGIC PUZZLE</p>
-        <h1>Lights Out</h1>
-        <p class="subtitle">
-            Every light starts OFF. Can you figure out the pattern?
-        </p>
+    <main class="page-container">
+        <header class="hero">
+            <p class="eyebrow">THE LOGIC CHALLENGE</p>
+            <h1>Lights <span>Out.</span></h1>
+            <p class="subtitle">
+                One grid. One goal. Think before you click.
+            </p>
 
-        <form action="/game" method="POST">
-            <div class="field">
-                <label for="rows">Number of rows</label>
-                <input
-                    type="number"
-                    id="rows"
-                    name="rows"
-                    min="1"
-                    max="15"
-                    value="5"
-                    required
-                >
+            <div class="preview-grid" aria-hidden="true">
+                <span class="preview-cell on"></span>
+                <span class="preview-cell off"></span>
+                <span class="preview-cell on"></span>
+                <span class="preview-cell off"></span>
+                <span class="preview-cell on"></span>
+                <span class="preview-cell off"></span>
+                <span class="preview-cell on"></span>
+                <span class="preview-cell on"></span>
+                <span class="preview-cell off"></span>
             </div>
+        </header>
 
-            <div class="field">
-                <label for="cols">Number of columns</label>
-                <input
-                    type="number"
-                    id="cols"
-                    name="cols"
-                    min="1"
-                    max="15"
-                    value="5"
-                    required
-                >
-            </div>
+        <section class="info-card">
+            <h2>🎯 Your mission</h2>
+            <p>
+                Turn every light in the grid <strong>ON</strong>.
+                Each move changes multiple cells, so plan carefully.
+            </p>
+        </section>
 
-            <button class="primary-button" type="submit">
-                Create my grid →
-            </button>
-        </form>
+        <section class="info-card">
+            <h2>📖 How to play</h2>
+            <ol class="instruction-list">
+                <li>Click any cell to toggle it.</li>
+                <li>The selected cell and its immediate neighbours
+                    (up, down, left and right) switch ON or OFF.</li>
+                <li>Diagonal cells do not change. Cells outside the
+                    board are ignored.</li>
+                <li>Continue until every cell is ON.</li>
+            </ol>
+        </section>
 
-        <p class="footnote">
-            Pressing a light toggles itself and its four neighbors.
-        </p>
+        <section class="tip-card">
+            <h2>💡 Think like a solver</h2>
+            <p>
+                One move can fix a light but change its neighbours.
+                Look at the whole board instead of a single cell.
+                You can use Hint to reveal a useful move or Show Solution
+                to see a complete solution when one exists.
+            </p>
+        </section>
+
+        <section class="start-card">
+            <h2>Choose your challenge</h2>
+            <p class="muted">
+                Pick any grid size between 2 × 2 and 10 × 10.
+            </p>
+
+            <% if (typeof error !== "undefined" && error) { %>
+                <p class="error-message"><%= error %></p>
+            <% } %>
+
+            <form action="/game" method="POST" id="setupForm">
+                <div class="input-grid">
+                    <div class="input-group">
+                        <label for="rows">Rows (2–10)</label>
+                        <input
+                            type="number"
+                            id="rows"
+                            name="rows"
+                            min="2"
+                            max="10"
+                            step="1"
+                            value="4"
+                            required
+                        >
+                    </div>
+
+                    <div class="input-group">
+                        <label for="cols">Columns (2–10)</label>
+                        <input
+                            type="number"
+                            id="cols"
+                            name="cols"
+                            min="2"
+                            max="10"
+                            step="1"
+                            value="4"
+                            required
+                        >
+                    </div>
+                </div>
+
+                <p id="gridSummary" class="grid-summary">
+                    Your grid: 4 × 4
+                </p>
+
+                <button type="submit" class="primary-button">
+                    Start Puzzle <span aria-hidden="true">→</span>
+                </button>
+            </form>
+        </section>
+
+        <footer>LIGHTS OUT · BUILT FOR CURIOUS MINDS</footer>
     </main>
+
+    <script>
+        const rowsInput = document.getElementById("rows");
+        const colsInput = document.getElementById("cols");
+        const summary = document.getElementById("gridSummary");
+        const form = document.getElementById("setupForm");
+
+        function updateSummary() {
+            summary.textContent =
+                `Your grid: ${rowsInput.value || "—"} × ${colsInput.value || "—"}`;
+        }
+
+        rowsInput.addEventListener("input", updateSummary);
+        colsInput.addEventListener("input", updateSummary);
+
+        form.addEventListener("submit", (event) => {
+            const rows = Number(rowsInput.value);
+            const cols = Number(colsInput.value);
+
+            if (
+                !Number.isInteger(rows) ||
+                !Number.isInteger(cols) ||
+                rows < 2 || rows > 10 ||
+                cols < 2 || cols > 10
+            ) {
+                event.preventDefault();
+                alert("Rows and columns must be whole numbers from 2 to 10.");
+            }
+        });
+    </script>
 </body>
 </html>

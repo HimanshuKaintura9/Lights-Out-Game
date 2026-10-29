@@ -3,36 +3,42 @@ const express = require("express");
 const path = require("path");
 
 const app = express();
-const port = process.env.PORT || 8080;
+const PORT = process.env.PORT || 8080;
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
-app.use(express.static(path.join(__dirname, "public")));
 app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, "public")));
 
-// Home page: choose grid dimensions
+const MIN_SIZE = 2;
+const MAX_SIZE = 10;
+
 app.get("/", (req, res) => {
-    res.render("index.ejs");
+    res.render("index");
 });
 
-// Game page: display the selected grid
 app.post("/game", (req, res) => {
     const rows = Number(req.body.rows);
     const cols = Number(req.body.cols);
 
-    if (
-        !Number.isInteger(rows) ||
-        !Number.isInteger(cols) ||
-        rows < 1 || rows > 15 ||
-        cols < 1 || cols > 15
-    ) {
-        return res.status(400).send("Choose rows and columns from 1 to 15.");
+    const valid =
+        Number.isInteger(rows) &&
+        Number.isInteger(cols) &&
+        rows >= MIN_SIZE &&
+        rows <= MAX_SIZE &&
+        cols >= MIN_SIZE &&
+        cols <= MAX_SIZE;
+
+    if (!valid) {
+        return res.status(400).render("index", {
+            error: "Choose between 2 and 10 rows and columns."
+        });
     }
 
-    res.render("game.ejs", { rows, cols });
+    res.render("game", { rows, cols });
 });
 
-app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+app.listen(PORT, () => {
+    console.log(`Lights Out running at http://localhost:${PORT}`);
 });

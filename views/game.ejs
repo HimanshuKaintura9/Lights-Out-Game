@@ -3,353 +3,388 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lights Out | Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Play Lights Out</title>
     <link rel="stylesheet" href="/style.css">
 </head>
-
 <body>
-    <main class="game-card">
+    <main class="page-container game-page">
+        <header class="game-header">
+            <a class="back-link" href="/">← Back to setup</a>
+            <p class="eyebrow">PUZZLE IN PROGRESS</p>
+            <h1>Lights <span>Out.</span></h1>
+            <p class="subtitle">
+                Grid: <%= rows %> × <%= cols %>
+            </p>
+        </header>
 
-        <a class="back-link" href="/">← Change grid size</a>
+        <section class="game-card">
+            <div class="status-row">
+                <span id="progressText">Lights ON: 0 / <%= rows * cols %></span>
+                <span id="moveText">Moves: 0</span>
+            </div>
 
-        <p class="eyebrow">YOUR PUZZLE</p>
-
-        <h1><%= rows %> × <%= cols %> Grid</h1>
-
-        <p class="subtitle">
-            Turn every light ON by pressing the correct buttons.
-        </p>
-
-        <!-- Grid dimensions are provided by EJS -->
-        <div
-            id="grid"
+            <div
+            id="gameBoard"
+            class="game-board"
             data-rows="<%= rows %>"
-            data-cols="<%= cols %>">
-        </div>
+            data-cols="<%= cols %>"
+            style="--cols: <%= cols %>;"
+            aria-label="Lights Out puzzle board">
+            </div>
 
-        <div class="actions">
-            <button class="primary-button" id="solveBtn">
-                Find Solution
-            </button>
+            <p id="statusMessage" class="status-message" role="status">
+                Turn every light ON to win.
+            </p>
 
-            <button class="secondary-button" id="resetBtn">
-                Reset
-            </button>
+            <div class="game-controls">
+                <button id="hintButton" class="secondary-button" type="button">
+                    Hint
+                </button>
+                <button id="solveButton" class="secondary-button" type="button">
+                    Show Solution
+                </button>
+                <button id="resetButton" class="secondary-button" type="button">
+                    Reset
+                </button>
+            </div>
 
-            <button class="secondary-button" id="applyBtn" hidden>
-                Apply Solution
-            </button>
-        </div>
+            <div id="hintPanel" class="hint-panel" hidden></div>
 
-        <p id="message" role="status">
-            All lights are OFF. Start experimenting!
-        </p>
+            <div id="resultMessage" class="result-message" role="status" hidden>
+            </div>
+        </section>
 
-        <p class="footnote">
-            Yellow = ON · Green outline = press this button
-        </p>
-
+        <section class="info-card compact-info">
+            <h2>Remember</h2>
+            <p>
+                A move toggles the chosen cell and its four orthogonal
+                neighbours. Use Hint to reveal one move from a valid solution.
+                Show Solution displays the full sequence.
+            </p>
+        </section>
     </main>
 
     <script>
-        // Read grid dimensions from the HTML attributes.
-        const gridElement = document.getElementById("grid");
+        const boardElement = document.getElementById("gameBoard");
+        const ROWS = Number(boardElement.dataset.rows);
+        const COLS = Number(boardElement.dataset.cols);
+        const TOTAL = ROWS * COLS;
+        
+        const progressText = document.getElementById("progressText");
+        const moveText = document.getElementById("moveText");
+        const statusMessage = document.getElementById("statusMessage");
+        const hintPanel = document.getElementById("hintPanel");
+        const resultMessage = document.getElementById("resultMessage");
 
-        const ROWS = Number(gridElement.dataset.rows);
-        const COLS = Number(gridElement.dataset.cols);
+        const hintButton = document.getElementById("hintButton");
+        const solveButton = document.getElementById("solveButton");
+        const resetButton = document.getElementById("resetButton");
 
-        // Initially, all lights are OFF.
-        let lights = Array.from(
-            { length: ROWS },
-            () => Array(COLS).fill(0)
-        );
+        let board = Array(TOTAL).fill(false);
+        let initialBoard = Array(TOTAL).fill(false);
+        let moves = 0;
+        let hintUsed = false;
+        let solutionViewed = false;
+        let solved = false;
+        let hintedIndex = -1;
+        let solutionSteps = [];
 
-        let solution = null;
+        const cells = [];
 
-        const message = document.getElementById("message");
-        const applyBtn = document.getElementById("applyBtn");
+        function indexOf(row, col) {
+            return row * COLS + col;
+        }
 
-        // Toggle a cell and its four direct neighbors.
-        function toggle(r, c, board = lights) {
-            const directions = [
-                [0, 0],
-                [-1, 0],
-                [1, 0],
-                [0, -1],
-                [0, 1]
+        function getAffectedCells(index) {
+            const row = Math.floor(index / COLS);
+            const col = index % COLS;
+
+            const positions = [
+                [row, col],
+                [row - 1, col],
+                [row + 1, col],
+                [row, col - 1],
+                [row, col + 1]
             ];
 
-            for (const [dr, dc] of directions) {
-                const nr = r + dr;
-                const nc = c + dc;
+            return positions
+                .filter(([r, c]) =>
+                    r >= 0 && r < ROWS && c >= 0 && c < COLS
+                )
+                .map(([r, c]) => indexOf(r, c));
+        }
 
-                if (
-                    nr >= 0 && nr < ROWS &&
-                    nc >= 0 && nc < COLS
+        function createBoard() {
+            boardElement.innerHTML = "";
+            boardElement.style.setProperty("--cols", COLS);
+
+            for (let i = 0; i < TOTAL; i++) {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "cell";
+                button.setAttribute("aria-label", `Row ${Math.floor(i / COLS) + 1}, column ${i % COLS + 1}, off`);
+                button.setAttribute("aria-pressed", "false");
+
+                button.addEventListener("click", () => {
+                    if (solved) return;
+                    makeMove(i);
+                });
+
+                cells.push(button);
+                boardElement.appendChild(button);
+            }
+
+            renderBoard();
+        }
+
+        function renderBoard() {
+            let onCount = 0;
+
+            board.forEach((isOn, index) => {
+                if (isOn) onCount++;
+
+                cells[index].classList.toggle("on", isOn);
+                cells[index].classList.toggle("hinted", index === hintedIndex);
+                const solutionStep = solutionSteps.indexOf(index);
+                cells[index].classList.toggle("solution-step", solutionStep !== -1);
+                if (solutionStep !== -1) {
+                    cells[index].dataset.step = String(solutionStep + 1);
+                } else {
+                    delete cells[index].dataset.step;
+                }
+                cells[index].setAttribute("aria-pressed", String(isOn));
+                cells[index].setAttribute(
+                    "aria-label",
+                    `Row ${Math.floor(index / COLS) + 1}, column ${index % COLS + 1}, ${isOn ? "on" : "off"}`
+                );
+            });
+
+            progressText.textContent = `Lights ON: ${onCount} / ${TOTAL}`;
+            moveText.textContent = `Moves: ${moves}`;
+
+            if (onCount === TOTAL) {
+                finishPuzzle();
+            }
+        }
+
+        function makeMove(index) {
+            if (solved) return;
+
+            for (const affected of getAffectedCells(index)) {
+                board[affected] = !board[affected];
+            }
+
+            moves++;
+            hintedIndex = -1;
+            hintPanel.hidden = true;
+            if (solutionViewed && !solved) {
+                solutionSteps = findSolution(board) || [];
+            }
+            renderBoard();
+        }
+
+        /*
+         * Solve the board as a linear system over GF(2).
+         * Each variable represents whether to press a cell.
+         * The target is the XOR difference between current board and all-ON.
+         */
+        function findSolution(sourceBoard) {
+            const variableCount = TOTAL;
+            const matrix = [];
+
+            for (let row = 0; row < TOTAL; row++) {
+                const equation = Array(variableCount + 1).fill(0);
+
+                for (let col = 0; col < variableCount; col++) {
+                    if (getAffectedCells(col).includes(row)) {
+                        equation[col] = 1;
+                    }
+                }
+
+                // A cell must toggle if it is currently OFF.
+                equation[variableCount] = sourceBoard[row] ? 0 : 1;
+                matrix.push(equation);
+            }
+
+            let pivotRow = 0;
+            const pivotColumns = [];
+
+            for (
+                let col = 0;
+                col < variableCount && pivotRow < TOTAL;
+                col++
+            ) {
+                let selected = pivotRow;
+
+                while (
+                    selected < TOTAL &&
+                    matrix[selected][col] === 0
                 ) {
-                    board[nr][nc] ^= 1;
+                    selected++;
                 }
-            }
-        }
 
-        // Draw the grid.
-        function render() {
-            gridElement.innerHTML = "";
+                if (selected === TOTAL) continue;
 
-            gridElement.style.gridTemplateColumns =
-                `repeat(${COLS}, min(55px, 12vw))`;
+                [matrix[pivotRow], matrix[selected]] =
+                    [matrix[selected], matrix[pivotRow]];
 
-            for (let r = 0; r < ROWS; r++) {
-                for (let c = 0; c < COLS; c++) {
-                    const button = document.createElement("button");
-
-                    button.type = "button";
-                    button.className = "cell";
-
-                    if (lights[r][c] === 1) {
-                        button.classList.add("on");
-                    }
-
-                    if (solution && solution[r][c] === 1) {
-                        button.classList.add("solution");
-                    }
-
-                    button.setAttribute(
-                        "aria-label",
-                        `Row ${r + 1}, column ${c + 1}, ${
-                            lights[r][c] ? "ON" : "OFF"
-                        }`
-                    );
-
-                    button.setAttribute(
-                        "aria-pressed",
-                        String(lights[r][c] === 1)
-                    );
-
-                    button.onclick = () => {
-                        solution = null;
-                        applyBtn.hidden = true;
-
-                        toggle(r, c);
-                        render();
-                        checkWin();
-                    };
-
-                    gridElement.appendChild(button);
-                }
-            }
-        }
-
-        // Check whether every light is ON.
-        function checkWin() {
-            const won = lights.every(
-                row => row.every(light => light === 1)
-            );
-
-            if (won) {
-                message.textContent =
-                    "All lights are ON! You solved it!";
-            }
-        }
-
-        // Solve the puzzle using Gaussian elimination over GF(2).
-        function solveGame() {
-            const N = ROWS * COLS;
-            const equations = [];
-
-            // Construct one equation for each light.
-            for (let r = 0; r < ROWS; r++) {
-                for (let c = 0; c < COLS; c++) {
-                    let mask = 0n;
-
-                    const directions = [
-                        [0, 0],
-                        [-1, 0],
-                        [1, 0],
-                        [0, -1],
-                        [0, 1]
-                    ];
-
-                    for (const [dr, dc] of directions) {
-                        const nr = r + dr;
-                        const nc = c + dc;
-
-                        if (
-                            nr >= 0 && nr < ROWS &&
-                            nc >= 0 && nc < COLS
-                        ) {
-                            const index = nr * COLS + nc;
-
-                            mask |= 1n << BigInt(index);
+                for (let r = 0; r < TOTAL; r++) {
+                    if (r !== pivotRow && matrix[r][col] === 1) {
+                        for (let c = col; c <= variableCount; c++) {
+                            matrix[r][c] ^= matrix[pivotRow][c];
                         }
                     }
-
-                    // The final state must be 1.
-                    const rhs = lights[r][c] ^ 1;
-
-                    if (rhs === 1) {
-                        mask |= 1n << BigInt(N);
-                    }
-
-                    equations.push(mask);
                 }
+
+                pivotColumns[pivotRow] = col;
+                pivotRow++;
             }
 
-            const coefficientMask = (1n << BigInt(N)) - 1n;
+            // Detect contradictory equations: 0 = 1.
+            for (let r = pivotRow; r < TOTAL; r++) {
+                let allZero = true;
 
-            const pivotColumns = [];
-            let rank = 0;
-
-            // Gaussian elimination.
-            for (let col = 0; col < N; col++) {
-                const bit = 1n << BigInt(col);
-                let pivot = -1;
-
-                for (let r = rank; r < N; r++) {
-                    if ((equations[r] & bit) !== 0n) {
-                        pivot = r;
+                for (let c = 0; c < variableCount; c++) {
+                    if (matrix[r][c] !== 0) {
+                        allZero = false;
                         break;
                     }
                 }
 
-                if (pivot === -1) {
-                    continue;
-                }
-
-                [
-                    equations[rank],
-                    equations[pivot]
-                ] = [
-                    equations[pivot],
-                    equations[rank]
-                ];
-
-                // Eliminate this variable from every other row.
-                for (let r = 0; r < N; r++) {
-                    if (
-                        r !== rank &&
-                        (equations[r] & bit) !== 0n
-                    ) {
-                        equations[r] ^= equations[rank];
-                    }
-                }
-
-                pivotColumns.push(col);
-                rank++;
-            }
-
-            // Detect inconsistent equations: 0 = 1.
-            for (const equation of equations) {
-                if (
-                    (equation & coefficientMask) === 0n &&
-                    ((equation >> BigInt(N)) & 1n) === 1n
-                ) {
-                    solution = null;
-                    render();
-                    applyBtn.hidden = true;
-
-                    message.textContent =
-                        "No solution exists for this starting pattern.";
-
-                    return;
+                if (allZero && matrix[r][variableCount] === 1) {
+                    return null;
                 }
             }
 
-            // Set free variables to zero.
-            const answer = Array(N).fill(0);
+            // Free variables are set to zero for one valid solution.
+            const solution = Array(variableCount).fill(0);
 
-            for (let r = 0; r < rank; r++) {
-                const col = pivotColumns[r];
-
-                answer[col] = Number(
-                    (equations[r] >> BigInt(N)) & 1n
-                );
+            for (let r = 0; r < pivotRow; r++) {
+                solution[pivotColumns[r]] = matrix[r][variableCount];
             }
 
-            solution = Array.from(
-                { length: ROWS },
-                (_, r) => answer.slice(r * COLS, (r + 1) * COLS)
-            );
+            return solution
+                .map((value, index) => value ? index : -1)
+                .filter(index => index !== -1);
+        }
 
-            // Verify the solution on a copy of the current grid.
-            const test = lights.map(row => row.slice());
+        function describeCell(index) {
+            return `row ${Math.floor(index / COLS) + 1}, column ${index % COLS + 1}`;
+        }
 
-            for (let r = 0; r < ROWS; r++) {
-                for (let c = 0; c < COLS; c++) {
-                    if (solution[r][c] === 1) {
-                        toggle(r, c, test);
-                    }
-                }
-            }
+        function useHint() {
+            if (solved) return;
 
-            // Never display a solution unless verification succeeds.
-            if (!test.every(row => row.every(v => v === 1))) {
-                solution = null;
-                render();
-                applyBtn.hidden = true;
+            const solution = findSolution(board);
 
-                message.textContent =
-                    "Solution verification failed.";
-
+            if (solution === null) {
+                statusMessage.textContent =
+                    "This board has no solution from its current state. Try Reset.";
+                hintPanel.hidden = true;
                 return;
             }
 
-            const count = solution
-                .flat()
-                .reduce((sum, value) => sum + value, 0);
-
-            render();
-
-            applyBtn.hidden = false;
-
-            message.textContent =
-                `Solution verified! Press the ${count} green-outlined buttons.`;
-        }
-
-        // Apply the highlighted solution.
-        function applySolution() {
-            if (!solution) return;
-
-            for (let r = 0; r < ROWS; r++) {
-                for (let c = 0; c < COLS; c++) {
-                    if (solution[r][c] === 1) {
-                        toggle(r, c);
-                    }
-                }
+            if (solution.length === 0) {
+                statusMessage.textContent = "The board is already solved.";
+                return;
             }
 
-            solution = null;
-            applyBtn.hidden = true;
+            hintUsed = true;
+            hintedIndex = solution[0];
+            hintPanel.textContent =
+                `Hint: try clicking ${describeCell(hintedIndex)}.`;
+            hintPanel.hidden = false;
 
-            render();
-            checkWin();
+            statusMessage.textContent = "Hint revealed. You can still solve it yourself.";
+            renderBoard();
         }
 
-        // Reset all lights to OFF.
+        function showSolution() {
+            if (solved) return;
+
+            const solution = findSolution(board);
+
+            if (solution === null) {
+                statusMessage.textContent =
+                    "No solution exists for this board. Reset to try again.";
+                return;
+            }
+
+            solutionViewed = true;
+            hintUsed = true;
+            solutionSteps = solution;
+
+            if (solution.length === 0) {
+                statusMessage.textContent = "The board is already solved.";
+                renderBoard();
+                return;
+            }
+
+            hintPanel.textContent =
+                "Press the highlighted cells in order: " + solution.map(index => describeCell(index)).join(" → ");
+            hintPanel.hidden = false;
+            statusMessage.textContent = "Solution highlighted. Click the numbered cells in order.";
+            renderBoard();
+        }
+
+        function finishPuzzle() {
+            if (solved) return;
+            solved = true;
+
+            cells.forEach(cell => {
+                cell.disabled = true;
+            });
+
+            hintButton.disabled = true;
+            solveButton.disabled = true;
+
+            const details = [];
+
+            if (hintUsed) details.push("Hint used");
+            if (solutionViewed) details.push("Solution viewed");
+
+            let message = "Puzzle solved!";
+
+            if (details.length) {
+                message += " " + details.join(" · ") + ".";
+            } else {
+                message += " Solved independently, without hints or viewing the solution!";
+            }
+
+            resultMessage.textContent = message;
+            resultMessage.hidden = false;
+            statusMessage.textContent = "All lights are ON.";
+        }
+
         function resetGame() {
-            lights = Array.from(
-                { length: ROWS },
-                () => Array(COLS).fill(0)
-            );
+            board = [...initialBoard];
+            moves = 0;
+            hintUsed = false;
+            solutionViewed = false;
+            solved = false;
+            hintedIndex = -1;
+            solutionSteps = [];
 
-            solution = null;
-            applyBtn.hidden = true;
+            cells.forEach(cell => {
+                cell.disabled = false;
+            });
 
-            render();
+            hintButton.disabled = false;
+            solveButton.disabled = false;
 
-            message.textContent =
-                "Grid reset. All lights are OFF.";
+            resultMessage.hidden = true;
+            hintPanel.hidden = true;
+            statusMessage.textContent = "Turn every light ON to win.";
+
+            renderBoard();
         }
 
-        document.getElementById("solveBtn").onclick = solveGame;
+        hintButton.addEventListener("click", useHint);
+        solveButton.addEventListener("click", showSolution);
+        resetButton.addEventListener("click", resetGame);
 
-        document.getElementById("resetBtn").onclick = resetGame;
-
-        applyBtn.onclick = applySolution;
-
-        // Initial rendering.
-        render();
+        createBoard();
     </script>
 </body>
 </html>
