@@ -1,0 +1,55 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lights Out | Setup</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <main class="setup-card">
+        <p class="eyebrow">A LOGIC PUZZLE</p>
+        <h1>Lights Out</h1>
+        <p class="subtitle">
+            Every light starts OFF. Can you figure out the pattern?
+        </p>
+
+        <form action="/game" method="POST">
+            <div class="field">
+                <label for="rows">Number of rows</label>
+                <input
+                    type="number"
+                    id="rows"
+                    name="rows"
+                    min="1"
+                    max="15"
+                    value="5"
+                    required
+                >
+            </div>
+
+            <div class="field">
+                <label for="cols">Number of columns</label>
+                <input
+                    type="number"
+                    id="cols"
+                    name="cols"
+                    min="1"
+                    max="15"
+                    value="5"
+                    required
+                >
+            </div>
+
+            <button class="primary-button" type="submit">
+                Create my grid →
+            </button>
+        </form>
+
+        <p class="footnote">
+            Pressing a light toggles itself and its four neighbors.
+        </p>
+    </main>
+</body>
+</html>

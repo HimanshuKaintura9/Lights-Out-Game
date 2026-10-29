@@ -1,0 +1,355 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lights Out | Game</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+    <main class="game-card">
+
+        <a class="back-link" href="/">← Change grid size</a>
+
+        <p class="eyebrow">YOUR PUZZLE</p>
+
+        <h1><%= rows %> × <%= cols %> Grid</h1>
+
+        <p class="subtitle">
+            Turn every light ON by pressing the correct buttons.
+        </p>
+
+        <!-- Grid dimensions are provided by EJS -->
+        <div
+            id="grid"
+            data-rows="<%= rows %>"
+            data-cols="<%= cols %>">
+        </div>
+
+        <div class="actions">
+            <button class="primary-button" id="solveBtn">
+                Find Solution
+            </button>
+
+            <button class="secondary-button" id="resetBtn">
+                Reset
+            </button>
+
+            <button class="secondary-button" id="applyBtn" hidden>
+                Apply Solution
+            </button>
+        </div>
+
+        <p id="message" role="status">
+            All lights are OFF. Start experimenting!
+        </p>
+
+        <p class="footnote">
+            Yellow = ON · Green outline = press this button
+        </p>
+
+    </main>
+
+    <script>
+        // Read grid dimensions from the HTML attributes.
+        const gridElement = document.getElementById("grid");
+
+        const ROWS = Number(gridElement.dataset.rows);
+        const COLS = Number(gridElement.dataset.cols);
+
+        // Initially, all lights are OFF.
+        let lights = Array.from(
+            { length: ROWS },
+            () => Array(COLS).fill(0)
+        );
+
+        let solution = null;
+
+        const message = document.getElementById("message");
+        const applyBtn = document.getElementById("applyBtn");
+
+        // Toggle a cell and its four direct neighbors.
+        function toggle(r, c, board = lights) {
+            const directions = [
+                [0, 0],
+                [-1, 0],
+                [1, 0],
+                [0, -1],
+                [0, 1]
+            ];
+
+            for (const [dr, dc] of directions) {
+                const nr = r + dr;
+                const nc = c + dc;
+
+                if (
+                    nr >= 0 && nr < ROWS &&
+                    nc >= 0 && nc < COLS
+                ) {
+                    board[nr][nc] ^= 1;
+                }
+            }
+        }
+
+        // Draw the grid.
+        function render() {
+            gridElement.innerHTML = "";
+
+            gridElement.style.gridTemplateColumns =
+                `repeat(${COLS}, min(55px, 12vw))`;
+
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const button = document.createElement("button");
+
+                    button.type = "button";
+                    button.className = "cell";
+
+                    if (lights[r][c] === 1) {
+                        button.classList.add("on");
+                    }
+
+                    if (solution && solution[r][c] === 1) {
+                        button.classList.add("solution");
+                    }
+
+                    button.setAttribute(
+                        "aria-label",
+                        `Row ${r + 1}, column ${c + 1}, ${
+                            lights[r][c] ? "ON" : "OFF"
+                        }`
+                    );
+
+                    button.setAttribute(
+                        "aria-pressed",
+                        String(lights[r][c] === 1)
+                    );
+
+                    button.onclick = () => {
+                        solution = null;
+                        applyBtn.hidden = true;
+
+                        toggle(r, c);
+                        render();
+                        checkWin();
+                    };
+
+                    gridElement.appendChild(button);
+                }
+            }
+        }
+
+        // Check whether every light is ON.
+        function checkWin() {
+            const won = lights.every(
+                row => row.every(light => light === 1)
+            );
+
+            if (won) {
+                message.textContent =
+                    "All lights are ON! You solved it!";
+            }
+        }
+
+        // Solve the puzzle using Gaussian elimination over GF(2).
+        function solveGame() {
+            const N = ROWS * COLS;
+            const equations = [];
+
+            // Construct one equation for each light.
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    let mask = 0n;
+
+                    const directions = [
+                        [0, 0],
+                        [-1, 0],
+                        [1, 0],
+                        [0, -1],
+                        [0, 1]
+                    ];
+
+                    for (const [dr, dc] of directions) {
+                        const nr = r + dr;
+                        const nc = c + dc;
+
+                        if (
+                            nr >= 0 && nr < ROWS &&
+                            nc >= 0 && nc < COLS
+                        ) {
+                            const index = nr * COLS + nc;
+
+                            mask |= 1n << BigInt(index);
+                        }
+                    }
+
+                    // The final state must be 1.
+                    const rhs = lights[r][c] ^ 1;
+
+                    if (rhs === 1) {
+                        mask |= 1n << BigInt(N);
+                    }
+
+                    equations.push(mask);
+                }
+            }
+
+            const coefficientMask = (1n << BigInt(N)) - 1n;
+
+            const pivotColumns = [];
+            let rank = 0;
+
+            // Gaussian elimination.
+            for (let col = 0; col < N; col++) {
+                const bit = 1n << BigInt(col);
+                let pivot = -1;
+
+                for (let r = rank; r < N; r++) {
+                    if ((equations[r] & bit) !== 0n) {
+                        pivot = r;
+                        break;
+                    }
+                }
+
+                if (pivot === -1) {
+                    continue;
+                }
+
+                [
+                    equations[rank],
+                    equations[pivot]
+                ] = [
+                    equations[pivot],
+                    equations[rank]
+                ];
+
+                // Eliminate this variable from every other row.
+                for (let r = 0; r < N; r++) {
+                    if (
+                        r !== rank &&
+                        (equations[r] & bit) !== 0n
+                    ) {
+                        equations[r] ^= equations[rank];
+                    }
+                }
+
+                pivotColumns.push(col);
+                rank++;
+            }
+
+            // Detect inconsistent equations: 0 = 1.
+            for (const equation of equations) {
+                if (
+                    (equation & coefficientMask) === 0n &&
+                    ((equation >> BigInt(N)) & 1n) === 1n
+                ) {
+                    solution = null;
+                    render();
+                    applyBtn.hidden = true;
+
+                    message.textContent =
+                        "No solution exists for this starting pattern.";
+
+                    return;
+                }
+            }
+
+            // Set free variables to zero.
+            const answer = Array(N).fill(0);
+
+            for (let r = 0; r < rank; r++) {
+                const col = pivotColumns[r];
+
+                answer[col] = Number(
+                    (equations[r] >> BigInt(N)) & 1n
+                );
+            }
+
+            solution = Array.from(
+                { length: ROWS },
+                (_, r) => answer.slice(r * COLS, (r + 1) * COLS)
+            );
+
+            // Verify the solution on a copy of the current grid.
+            const test = lights.map(row => row.slice());
+
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    if (solution[r][c] === 1) {
+                        toggle(r, c, test);
+                    }
+                }
+            }
+
+            // Never display a solution unless verification succeeds.
+            if (!test.every(row => row.every(v => v === 1))) {
+                solution = null;
+                render();
+                applyBtn.hidden = true;
+
+                message.textContent =
+                    "Solution verification failed.";
+
+                return;
+            }
+
+            const count = solution
+                .flat()
+                .reduce((sum, value) => sum + value, 0);
+
+            render();
+
+            applyBtn.hidden = false;
+
+            message.textContent =
+                `Solution verified! Press the ${count} green-outlined buttons.`;
+        }
+
+        // Apply the highlighted solution.
+        function applySolution() {
+            if (!solution) return;
+
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    if (solution[r][c] === 1) {
+                        toggle(r, c);
+                    }
+                }
+            }
+
+            solution = null;
+            applyBtn.hidden = true;
+
+            render();
+            checkWin();
+        }
+
+        // Reset all lights to OFF.
+        function resetGame() {
+            lights = Array.from(
+                { length: ROWS },
+                () => Array(COLS).fill(0)
+            );
+
+            solution = null;
+            applyBtn.hidden = true;
+
+            render();
+
+            message.textContent =
+                "Grid reset. All lights are OFF.";
+        }
+
+        document.getElementById("solveBtn").onclick = solveGame;
+
+        document.getElementById("resetBtn").onclick = resetGame;
+
+        applyBtn.onclick = applySolution;
+
+        // Initial rendering.
+        render();
+    </script>
+</body>
+</html>

@@ -1,0 +1,168 @@
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 30px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: Arial, sans-serif;
+    background: #111827;
+    color: #f9fafb;
+}
+
+.setup-card,
+.game-card {
+    width: 100%;
+    max-width: 600px;
+    padding: 28px;
+    border: 1px solid #374151;
+    border-radius: 18px;
+    background: #1f2937;
+    text-align: center;
+}
+
+.setup-card {
+    max-width: 440px;
+}
+
+.eyebrow {
+    color: #60a5fa;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 3px;
+}
+
+h1 {
+    margin: 12px 0;
+    font-size: clamp(30px, 7vw, 42px);
+}
+
+.subtitle {
+    color: #9ca3af;
+    line-height: 1.6;
+    margin-bottom: 28px;
+}
+
+.field {
+    text-align: left;
+    margin: 18px 0;
+}
+
+label {
+    display: block;
+    margin-bottom: 8px;
+    color: #d1d5db;
+}
+
+input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #4b5563;
+    border-radius: 8px;
+    background: #111827;
+    color: white;
+    font-size: 16px;
+}
+
+button {
+    font: inherit;
+    cursor: pointer;
+}
+
+.primary-button,
+.secondary-button {
+    padding: 12px 16px;
+    border: 0;
+    border-radius: 8px;
+    font-weight: bold;
+    margin: 5px;
+}
+
+.primary-button {
+    color: white;
+    background: #2563eb;
+}
+
+.primary-button:hover {
+    background: #1d4ed8;
+}
+
+.secondary-button {
+    background: #374151;
+    color: white;
+}
+
+form .primary-button {
+    width: 100%;
+    margin: 14px 0;
+}
+
+.back-link {
+    display: block;
+    text-align: left;
+    color: #93c5fd;
+    text-decoration: none;
+    margin-bottom: 24px;
+}
+
+#grid {
+    display: grid;
+    gap: 5px;
+    width: fit-content;
+    max-width: 100%;
+    margin: 28px auto;
+}
+
+.cell {
+    width: min(55px, 12vw);
+    height: min(55px, 12vw);
+    min-width: 20px;
+    min-height: 20px;
+    padding: 0;
+    border-radius: 7px;
+    border: 2px solid #4b5563;
+    background: #374151;
+}
+
+.cell.on {
+    background: #facc15;
+    border-color: #fef08a;
+    box-shadow: 0 0 10px #facc1544;
+}
+
+.cell.solution {
+    outline: 3px solid #34d399;
+    outline-offset: -3px;
+}
+
+#message {
+    min-height: 24px;
+    color: #93c5fd;
+    line-height: 1.5;
+}
+
+.footnote {
+    margin-top: 24px;
+    color: #9ca3af;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.actions {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+    outline: 2px solid #60a5fa;
+    outline-offset: 3px;
+}
